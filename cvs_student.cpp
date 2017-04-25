@@ -31,6 +31,12 @@ int cvs_student::get_student_from_stdin(){
 	return 0;
 }
 
+int cvs_student::get_student_from_string(char* line){
+	sscanf(line ,"%d,%[^,],%[^,],%d",&ID,Name,Department,&Age);
+	return 0;
+}
+
+
 int cvs_student::get_student_from_file(FILE* fp){
 	fscanf(fp,"%d,%[^,],%[^,],%d",&ID,Name,Department,&Age);
 	return 0;

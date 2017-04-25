@@ -6,54 +6,114 @@
 #include <string>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/mman.h>
 
 int main(int argn, char* argv[]){
+	
+	if(argn <= 1){
+		perror("input parameter less than 1\n");
+		return 1;
+	}
+	
+	std::cout << argv[1] << std::endl;
 	int stat;
 	int num = 8;
-	int filenum = 5;
-	// 初始化数组
-	cvs_student* student_list, *student_list_out;
-	student_list = new cvs_student[num*filenum];
-	student_list_out = new cvs_student[num*filenum];
+	int filenum = 4;
+	int chd[2][filenum];
 	
+	for (int i = 0; i < filenum;i++) {
+		pipe(chd[i]);
+	}
 	
 	for (int i = 1; i <= filenum;i++) {
 		int pid = fork();
+		// filenum son threads
 		if(pid == 0) {
-			FILE* fp;
-			std::string file_name = std::string("../test")+char('0'+i)+std::string(".txt");
-			std::cout << file_name << std::endl;
-			fp = fopen( file_name.c_str(),"r");
-			for(int stu_i = 0; stu_i <  num; stu_i ++){
-				student_list[stu_i].get_student_from_file(fp);		
+			cvs_student* student_list = new cvs_student[50];
+			std::cout << i << std::endl;
+			char singlebuff[1];
+			int inline_count = 0;
+			int count = 0;
+			char buf[1024];
+			while(1){
+				read(chd[i-1][0],singlebuff,sizeof(char));
+				buf[inline_count] = singlebuff[0];
+				inline_count ++;
+				if(singlebuff[0] == '\n') {
+					buf[inline_count] = '\0';
+					if(strcmp(buf,"all finish\n")==0){
+						break;
+					}
+					student_list[count].get_student_from_string(buf);
+					//student_list[count].show_student_to_stout();
+					count ++;
+					inline_count = 0;
+				}
 			}
-			fclose(fp);
-			// 写入文件
-			std::string file_name_out = std::string("../test")+char('0'+i)+std::string(".bin");
-			int outf = open(file_name_out.c_str(),O_WRONLY|O_CREAT|O_TRUNC, 0600);
-			write(outf, student_list, sizeof(cvs_student)*num*filenum);
-			close(outf);
-			exit(0);		
+			char tmp[2]; tmp[0] = (i+'0');tmp[1]='\0';
+			std::string finame= "./bin_line" + std::string(tmp);
+			//std::cout << finame << std::endl;
+			int fd_mm = open(finame.c_str(),O_WRONLY|O_CREAT|O_TRUNC, 0600);
+			write(fd_mm, student_list, sizeof(cvs_student)*count );
+			close(fd_mm);
+			exit(0);
 		}
+		// father thread
+		if(i == filenum){
+			i++;
+			std::cout << i << std::endl;
+		/* 	for (int ind = 0; ind< filenum;ind++){
+				close(chd[ind][0]);
+			} */
+			std::string line;
+			int count = 0;
+			int inline_count = 0;
+			char singlebuff[1];
+			char buf[1024];
+			int input_file;			
+			input_file = open(argv[1],O_RDONLY);
+			while(read(input_file,singlebuff,sizeof(char))){
+				buf[inline_count] = singlebuff[0];
+				inline_count ++;
+				if(singlebuff[0] == '\n') {
+					//std::cout << "f "<< buf;
+					write(chd[(count)%4][1],buf,inline_count);
+					count ++;
+					inline_count = 0;
+				}
+			}
+			for (int ind = 0; ind < filenum;ind++){
+				write(chd[ind][1],"all finish\n",12);
+			}
+			sleep(3);
+			int fd_mm[4];
+			cvs_student* student_list[4];
+			cvs_student* student_list_all = new cvs_student[50];
+			for(int ind = 0; ind < filenum;ind++){
+				char tmp[2]; tmp[0] = (ind+'1');tmp[1]='\0';
+				std::string finame= "./bin_line" + std::string(tmp);
+				//std::cout << finame << std::endl;
+				fd_mm[ind] = open(finame.c_str(), O_RDONLY);
+				student_list[ind] = (cvs_student*)mmap(NULL,sizeof(cvs_student)*100,PROT_READ,MAP_SHARED,fd_mm[ind],0);
+				
+			}
+			for (int ind = 0; ind < count;ind++){
+				student_list_all[ind] = student_list[ind%4][ind/4];
+				//student_list_all[ind].show_student_to_stout();
+			}
+			
+			for(int ind = 0; ind < filenum;ind++){
+				close(fd_mm[ind]);		
+			}
+			int fd_out = open("../outbin.bin",O_WRONLY|O_CREAT|O_TRUNC, 0600);
+			write(fd_out, student_list_all, sizeof(cvs_student)*count );
+			close(fd_out);
+		}
+		
+		
 	}
 	
-	sleep(3);
-	wait();
-	
-	// 读取文件
-	
-	for(int ifile = 1; ifile <= filenum;ifile++) {
-		std::string file_name = std::string("../test")+char('0'+ifile)+std::string(".bin");
-		std::cout << file_name << std::endl;
-		int inf = open(file_name.c_str(), O_RDONLY, 0);
-		read(inf, ((void*)student_list)+sizeof(cvs_student)*num*(ifile-1), sizeof(cvs_student)*num);
-		close(inf);		
-	}
-	
-	// 转化成小端并输出
-	for(int stu_i = 0; stu_i <  num*filenum; stu_i ++){
-		student_list[stu_i].show_student_to_stout();
-	}
 	
 	return 0;
 }

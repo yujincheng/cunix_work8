@@ -9,6 +9,7 @@ public:
 	uint8_t Age;
 	void set_student(uint64_t,char*,char*,uint8_t);
 	int get_student_from_stdin();
+	int get_student_from_string(char* line);
 	int get_student_from_file(FILE* file_name);
 	void show_student_to_stout();
 	void convert_le_be(cvs_student&);
